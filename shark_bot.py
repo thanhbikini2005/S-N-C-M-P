@@ -39,7 +39,6 @@ def send_telegram(message):
 
 def find_latest_shark_in_90_days(df):
     """Quét lùi 90 phiên để tìm Cá Mập Tím hoặc Vàng gần nhất"""
-    # Tính toán chỉ báo cho toàn bộ dataframe
     df['SMA_20'] = ta.sma(df['Close'], length=20)
     df['SMA_20_Vol'] = ta.sma(df['Volume'], length=20)
     df['RSI_14'] = ta.rsi(df['Close'], length=14)
@@ -51,22 +50,18 @@ def find_latest_shark_in_90_days(df):
     if df.empty:
         return None
 
-    # Lấy đúng 90 phiên gần nhất
     df_90 = df.tail(90)
     
-    # Quét ngược từ ngày mới nhất về quá khứ (trong 90 ngày đó)
     for i in range(len(df_90) - 1, -1, -1):
         row = df_90.iloc[i]
         
-        # Lấy giá trị của phiên trước đó (để check RSI phân kỳ)
         if i > 0:
             prev_row = df_90.iloc[i-1]
         else:
-            # Nếu là phiên đầu tiên trong tập 90 ngày, lấy dòng trước nó từ df gốc
             idx_in_original = df.index.get_loc(df_90.index[i])
             prev_row = df.iloc[idx_in_original - 1] if idx_in_original > 0 else row
             
-        # 1. Gatekeepers (Màng lọc dòng tiền & Trend)
+        # 1. Gatekeepers
         cmf_ok = row['CMF_20'] > 0
         trend_confirmed = (row['Close'] > row['SMA_20'] and row['Volume'] > row['SMA_20_Vol'] * 1.3) or \
                           (row['RSI_14'] > prev_row['RSI_14'] and prev_row['RSI_14'] < 35)
@@ -97,7 +92,7 @@ def find_latest_shark_in_90_days(df):
         # 4. Tính điểm
         cond_count = int(A1) + int(A2) + int(B1) + int(B2) + int(B3) + int(B4) + int(B5) + int(B6)
 
-        # 5. Chỉ lấy Cá Mập Tím (>=7) và Vàng (>=5)
+        # 5. Lọc Cá Mập
         if cond_count >= 5:
             color_type = "PURPLE" if cond_count >= 7 else "YELLOW"
             bars_ago = len(df_90) - 1 - i
@@ -109,13 +104,14 @@ def find_latest_shark_in_90_days(df):
                 "date_str": df_90.index[i].strftime('%d/%m/%Y'),
                 "bars_ago": bars_ago,
                 "close": row['Close'],
+                "volume": row['Volume'],
                 "vol_ratio": round(vol_ratio, 1)
             }
             
     return None
 
 def main():
-    print("Đang tải dữ liệu 6 tháng gần nhất (để lấy đủ 90 phiên sau khi cắt)...")
+    print("Đang tải dữ liệu chứng khoán...")
     data = yf.download(vn_tickers, period="6mo", group_by="ticker", progress=False)
     
     purple_sharks = []
@@ -124,7 +120,7 @@ def main():
     for t in vn_tickers:
         try:
             df = data[t].copy()
-            if len(df) < 30: # Cần tối thiểu data để tính MA20
+            if len(df) < 30: 
                 continue
                 
             shark = find_latest_shark_in_90_days(df)
@@ -137,41 +133,38 @@ def main():
         except Exception as e:
             continue
 
-    # Sắp xếp các danh sách theo ngày: Từ Mới Nhất -> Cũ Nhất
+    # Sắp xếp từ Mới Nhất -> Cũ Nhất
     purple_sharks.sort(key=lambda x: x['date'], reverse=True)
     yellow_sharks.sort(key=lambda x: x['date'], reverse=True)
     
-    # Chuẩn bị tin nhắn
     today_str = datetime.now().strftime("%d/%m/%Y")
     total_purple = len(purple_sharks)
-    total_yellow = len(yellow_sharks)
     
-    # Trường hợp không có con nào
+    # Trường hợp không có tín hiệu
     if not purple_sharks and not yellow_sharks:
-        msg = f"💤 <b>{total_purple} CÁ MẬP TÍM - 90 NGÀY ({today_str})</b>\nKhông phát hiện mã nào đạt chuẩn Tím/Vàng trong 90 ngày qua."
+        msg = f"💤 <b>0 CÁ MẬP TÍM ({today_str})</b>\nKhông phát hiện mã nào đạt chuẩn Tím/Vàng."
         send_telegram(msg)
         print("Đã gửi báo cáo trống.")
         return
 
     # Khởi tạo Tiêu đề
-    msg_lines = [f"🎯 <b>{total_purple} CÁ MẬP TÍM - 90 NGÀY ({today_str})</b>\n"]
+    msg_lines = [f"🎯 <b>{total_purple} CÁ MẬP TÍM ({today_str})</b>\n"]
     
-    # 1. In danh sách Cá Mập Tím (gom chung, ưu tiên mới nhất lên đầu)
+    # 1. Nhóm Cá Mập Tím
     if purple_sharks:
-        msg_lines.append("🟪 <b>NHÓM CÁ MẬP TÍM (ĐIỂM 7-8/8):</b>")
+        msg_lines.append("🟪 <b>NHÓM CÁ MẬP TÍM (ĐIỂM 7-8/8):</b>\n")
         for s in purple_sharks:
             ago_str = "Hôm nay" if s['bars_ago'] == 0 else f"Cách đây {s['bars_ago']} ngày"
             msg_lines.append(f"• <b>{s['symbol']}</b> ({s['date_str']} - {ago_str})")
-            msg_lines.append(f"  Giá: {s['close']:,.0f} | Vol: {s['vol_ratio']}x | Score: {s['score']}")
-        msg_lines.append("") # Xuống dòng trắng
+            msg_lines.append(f"  Giá: {s['close']:,.0f} | KL: {s['volume']:,.0f} | Vol: {s['vol_ratio']}x | Điểm: {s['score']}\n")
         
-    # 2. In danh sách Cá Mập Vàng (gom chung, ưu tiên mới nhất lên đầu)
+    # 2. Nhóm Cá Mập Vàng
     if yellow_sharks:
-        msg_lines.append("🟨 <b>NHÓM CÁ MẬP VÀNG (ĐIỂM 5-6/8):</b>")
+        msg_lines.append("🟨 <b>NHÓM CÁ MẬP VÀNG (ĐIỂM 5-6/8):</b>\n")
         for s in yellow_sharks:
             ago_str = "Hôm nay" if s['bars_ago'] == 0 else f"Cách đây {s['bars_ago']} ngày"
             msg_lines.append(f"• <b>{s['symbol']}</b> ({s['date_str']} - {ago_str})")
-            msg_lines.append(f"  Giá: {s['close']:,.0f} | Vol: {s['vol_ratio']}x | Score: {s['score']}")
+            msg_lines.append(f"  Giá: {s['close']:,.0f} | KL: {s['volume']:,.0f} | Vol: {s['vol_ratio']}x | Điểm: {s['score']}\n")
 
     # Gộp toàn bộ dòng thành 1 tin nhắn và gửi
     final_msg = "\n".join(msg_lines)

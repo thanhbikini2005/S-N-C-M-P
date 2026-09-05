@@ -1,4 +1,4 @@
 yfinance==0.2.36
-pandas==2.2.0
-pandas-ta
+pandas==1.5.3
+git+https://github.com/twopirllc/pandas-ta.git@main
 requests==2.31.0

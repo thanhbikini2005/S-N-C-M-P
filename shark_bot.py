@@ -33,9 +33,21 @@ tickers_list = [
 vn_tickers = [f"{t}.VN" for t in tickers_list]
 
 def send_telegram(message):
+    """Gửi tin nhắn Telegram, tự động chia nhỏ nếu quá giới hạn ký tự"""
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "HTML"}
-    requests.post(url, data=payload)
+    
+    # Telegram giới hạn 4096 ký tự/tin. Cắt ở mức an toàn 4000
+    max_length = 4000
+    parts = [message[i:i+max_length] for i in range(0, len(message), max_length)]
+    
+    for part in parts:
+        payload = {"chat_id": TELEGRAM_CHAT_ID, "text": part, "parse_mode": "HTML"}
+        try:
+            response = requests.post(url, data=payload)
+            if not response.ok:
+                print(f"❌ LỖI GỬI TELEGRAM: {response.text}")
+        except Exception as e:
+            print(f"❌ LỖI MẠNG TELEGRAM: {e}")
 
 def find_latest_shark_in_90_days(df):
     """Quét lùi 90 phiên để tìm Cá Mập Tím hoặc Vàng gần nhất"""
@@ -139,7 +151,10 @@ def main():
     
     today_str = datetime.now().strftime("%d/%m/%Y")
     total_purple = len(purple_sharks)
+    total_yellow = len(yellow_sharks)
     
+    print(f"✅ Quét xong: Có {total_purple} Cá Mập Tím và {total_yellow} Cá Mập Vàng.")
+
     # Trường hợp không có tín hiệu
     if not purple_sharks and not yellow_sharks:
         msg = f"💤 <b>0 CÁ MẬP TÍM ({today_str})</b>\nKhông phát hiện mã nào đạt chuẩn Tím/Vàng."

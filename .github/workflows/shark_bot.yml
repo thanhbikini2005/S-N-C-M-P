@@ -2,9 +2,8 @@ name: Shark Tracker Daily Scan
 
 on:
   schedule:
-    # Chạy vào lúc 16:30 chiều giờ Việt Nam (09:30 UTC), từ Thứ 2 đến Thứ 6 (1-5)
     - cron: '30 9 * * 1-5'
-  workflow_dispatch: # Cho phép bấm chạy bằng tay
+  workflow_dispatch:
 
 jobs:
   build:
@@ -17,7 +16,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.12'
 
       - name: Install Dependencies
         run: |

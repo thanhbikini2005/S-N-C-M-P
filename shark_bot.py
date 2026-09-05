@@ -181,9 +181,16 @@ def main():
             msg_lines.append(f"• <b>{s['symbol']}</b> ({s['date_str']} - {ago_str})")
             msg_lines.append(f"  Giá: {s['close']:,.0f} | KL: {s['volume']:,.0f} | Vol: {s['vol_ratio']}x | Điểm: {s['score']}\n")
 
-    # Gộp toàn bộ dòng thành 1 tin nhắn và gửi
+    # Gửi tin nhắn chứa danh sách chi tiết
     final_msg = "\n".join(msg_lines)
     send_telegram(final_msg)
+    
+    # Gửi tin nhắn tóm tắt riêng biệt ở cuối cùng
+    if purple_sharks:
+        purple_symbols_str = ", ".join([s['symbol'] for s in purple_sharks])
+        summary_msg = f"🎯 <b>{total_purple} CÁ MẬP TÍM ({today_str})</b>\nCác mã: <b>{purple_symbols_str}</b>\n----------------------------"
+        send_telegram(summary_msg)
+
     print("Hoàn tất gửi báo cáo!")
 
 if __name__ == "__main__":
